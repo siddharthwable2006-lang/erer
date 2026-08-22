@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IACS — Intelligent Adaptive Charging System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width="34" height="34">
+        <path d="M22 2 L8 22 H18 L16 38 L32 16 H21 Z" fill="url(#boltGrad)"/>
+        <defs>
+          <linearGradient id="boltGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#5eead4"/>
+            <stop offset="1" stop-color="#22d3ee"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <h1><span class="brand-tag">IACS</span> <span class="brand-sep">|</span> Intelligent Adaptive Charging System</h1>
+      <p class="brand-sub">ESP32 controller &bull; DAC-driven buck converter &bull; SOC/SOH digital twin</p>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="datasource-toggle" role="group" aria-label="Data source">
+      <button id="btn-sim-data" class="ds-btn active" type="button">
+        <span class="ds-dot dot-live"></span>SIMULATION DATA
+      </button>
+      <button id="btn-real-data" class="ds-btn" type="button">
+        <span class="ds-dot dot-off"></span>REAL IACS DATA
+      </button>
+    </div>
+    <button id="btn-sidebar-toggle" class="icon-btn only-small" type="button" aria-label="Toggle battery monitor">☰</button>
+  </div>
+</header>
+
+<div id="real-data-banner" class="real-data-banner hidden">
+  Hardware connection unavailable — Simulation Mode
+</div>
+
+<!-- ============ APP GRID ============ -->
+<div class="app-grid">
+
+  <!-- ============ SIDEBAR : BATTERY MONITOR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <h2 class="panel-title">Battery Monitor</h2>
+
+    <div class="gauge-row">
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 120 120" class="gauge-svg">
+          <circle cx="60" cy="60" r="50" class="gauge-track"/>
+          <circle cx="60" cy="60" r="50" class="gauge-fill" id="soc-ring" stroke-dasharray="314" stroke-dashoffset="314"/>
+        </svg>
+        <div class="gauge-label">
+          <span class="gauge-value" id="soc-value">20.1%</span>
+          <span class="gauge-name">SOC</span>
+        </div>
+      </div>
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 120 120" class="gauge-svg">
+          <circle cx="60" cy="60" r="50" class="gauge-track"/>
+          <circle cx="60" cy="60" r="50" class="gauge-fill gauge-fill--soh" id="soh-ring" stroke-dasharray="314" stroke-dashoffset="0"/>
+        </svg>
+        <div class="gauge-label">
+          <span class="gauge-value" id="soh-value">100%</span>
+          <span class="gauge-name">SOH</span>
+        </div>
+      </div>
+    </div>
+
+    <dl class="metric-list">
+      <div class="metric-row"><dt>Voltage</dt><dd id="m-voltage">20.34 V</dd></div>
+      <div class="metric-row"><dt>Setpoint Voltage</dt><dd id="m-vsetpoint">22.44 V</dd></div>
+      <div class="metric-row"><dt>Current</dt><dd id="m-current">6.00 A</dd></div>
+      <div class="metric-row"><dt>Power</dt><dd id="m-power">122 W</dd></div>
+      <div class="metric-row"><dt>Temperature</dt><dd id="m-temp">29.9 &deg;C</dd></div>
+      <div class="metric-row"><dt>Usable Capacity</dt><dd id="m-capacity">9.00 Ah</dd></div>
+      <div class="metric-row"><dt>Equivalent Full Cycles</dt><dd id="m-cycles">0.00</dd></div>
+      <div class="metric-row"><dt>Charging Time</dt><dd id="m-chargetime">00:00</dd></div>
+    </dl>
+
+    <div class="status-block">
+      <div class="status-line">
+        <span class="status-label">Charging State</span>
+        <span class="status-pill" id="m-chargestate">IDLE</span>
+      </div>
+      <div class="status-line">
+        <span class="status-label">Fault Status</span>
+        <span class="status-pill status-pill--ok" id="m-fault">NONE</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="main-content">
+
+    <!-- SIMULATION VISUALIZATION -->
+    <section class="panel viz-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Charging Visualization</h2>
+        <span class="badge" id="viz-state-badge">IDLE</span>
+      </div>
+      <canvas id="sim-canvas" class="sim-canvas" width="1000" height="320"></canvas>
+
+      <div class="charger-readout">
+        <div class="cr-item"><span class="cr-label">Input V</span><span class="cr-value" id="cr-vin">48.0 V</span></div>
+        <div class="cr-item"><span class="cr-label">Output V</span><span class="cr-value" id="cr-vout">22.4 V</span></div>
+        <div class="cr-item"><span class="cr-label">Input I</span><span class="cr-value" id="cr-iin">0.00 A</span></div>
+        <div class="cr-item"><span class="cr-label">Output I</span><span class="cr-value" id="cr-iout">0.00 A</span></div>
+        <div class="cr-item"><span class="cr-label">Power</span><span class="cr-value" id="cr-power">0 W</span></div>
+        <div class="cr-item"><span class="cr-label">Conv. Temp</span><span class="cr-value" id="cr-temp">32.0 &deg;C</span></div>
+      </div>
+    </section>
+
+    <!-- POWER FLOW DIAGRAM -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Power Flow</h2>
+        <span class="badge" id="flow-state-badge">STOPPED</span>
+      </div>
+      <div class="power-flow" id="power-flow">
+        <div class="flow-node">
+          <span class="flow-node-label">GRID</span>
+        </div>
+        <div class="flow-arrow" id="flow-arrow-1"><span class="flow-arrow-line"></span></div>
+        <div class="flow-node">
+          <span class="flow-node-label">INPUT</span>
+          <span class="flow-node-value" id="flow-input">48.0V / 0.00A</span>
+        </div>
+        <div class="flow-arrow" id="flow-arrow-2"><span class="flow-arrow-line"></span></div>
+        <div class="flow-node flow-node--converter">
+          <span class="flow-node-label">BUCK CONVERTER</span>
+          <span class="flow-node-value" id="flow-efficiency">92% eff.</span>
+        </div>
+        <div class="flow-arrow" id="flow-arrow-3"><span class="flow-arrow-line"></span></div>
+        <div class="flow-node">
+          <span class="flow-node-label">OUTPUT</span>
+          <span class="flow-node-value" id="flow-output">22.4V / 0.00A</span>
+        </div>
+        <div class="flow-arrow" id="flow-arrow-4"><span class="flow-arrow-line"></span></div>
+        <div class="flow-node">
+          <span class="flow-node-label">EV BATTERY</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- INPUT / OUTPUT PARAMETER CARDS -->
+    <section class="panel">
+      <h2 class="panel-title">Electrical Parameters</h2>
+      <div class="io-grid">
+        <div class="io-card io-card--in">
+          <span class="io-card-label">Input Voltage</span>
+          <span class="io-card-value" id="io-vin">48.0 <small>V</small></span>
+        </div>
+        <div class="io-card io-card--in">
+          <span class="io-card-label">Input Current</span>
+          <span class="io-card-value" id="io-iin">0.00 <small>A</small></span>
+        </div>
+        <div class="io-card io-card--in">
+          <span class="io-card-label">Input Power</span>
+          <span class="io-card-value" id="io-pin">0 <small>W</small></span>
+        </div>
+        <div class="io-card io-card--out">
+          <span class="io-card-label">Output Voltage</span>
+          <span class="io-card-value" id="io-vout">22.4 <small>V</small></span>
+        </div>
+        <div class="io-card io-card--out">
+          <span class="io-card-label">Output Current</span>
+          <span class="io-card-value" id="io-iout">0.00 <small>A</small></span>
+        </div>
+        <div class="io-card io-card--out">
+          <span class="io-card-label">Output Power</span>
+          <span class="io-card-value" id="io-pout">0 <small>W</small></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TEMPERATURE -->
+    <section class="panel">
+      <h2 class="panel-title">Thermal Status</h2>
+      <div class="temp-grid">
+        <div class="temp-card">
+          <span class="temp-card-label">Battery Temperature</span>
+          <span class="temp-card-value" id="temp-batt">29.9 &deg;C</span>
+          <span class="temp-card-state" id="temp-batt-state">NORMAL</span>
+        </div>
+        <div class="temp-card">
+          <span class="temp-card-label">Converter Temperature</span>
+          <span class="temp-card-value" id="temp-conv">32.0 &deg;C</span>
+          <span class="temp-card-state" id="temp-conv-state">NORMAL</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHARGING CONTROL -->
+    <section class="panel">
+      <h2 class="panel-title">Charging Control</h2>
+      <div class="control-grid">
+
+        <div class="control-block">
+          <span class="control-label">Power</span>
+          <div class="btn-row">
+            <button id="btn-power-on" class="ctl-btn ctl-btn--on" type="button">ON</button>
+            <button id="btn-power-off" class="ctl-btn ctl-btn--off active" type="button">OFF</button>
+          </div>
+        </div>
+
+        <div class="control-block">
+          <span class="control-label">Charging</span>
+          <div class="btn-row">
+            <button id="btn-start" class="ctl-btn ctl-btn--start" type="button">START</button>
+            <button id="btn-stop" class="ctl-btn ctl-btn--stop" type="button">STOP</button>
+          </div>
+        </div>
+
+        <div class="control-block control-block--wide">
+          <span class="control-label">Current Setpoint <em id="current-setpoint-label">6.0 A</em></span>
+          <div class="slider-row">
+            <button id="btn-current-minus" class="stepper-btn" type="button">&minus;</button>
+            <input type="range" id="current-slider" min="0" max="10" step="0.1" value="6.0" class="slider">
+            <button id="btn-current-plus" class="stepper-btn" type="button">+</button>
+          </div>
+          <button id="btn-apply-current" class="apply-btn" type="button">Apply Current</button>
+        </div>
+
+        <div class="control-block control-block--wide">
+          <span class="control-label">Voltage Setpoint <em id="voltage-setpoint-label">22.4 V</em></span>
+          <div class="slider-row">
+            <button id="btn-voltage-minus" class="stepper-btn" type="button">&minus;</button>
+            <input type="range" id="voltage-slider" min="18" max="30" step="0.1" value="22.4" class="slider">
+            <button id="btn-voltage-plus" class="stepper-btn" type="button">+</button>
+          </div>
+          <button id="btn-apply-voltage" class="apply-btn" type="button">Apply Voltage</button>
+        </div>
+      </div>
+
+      <div class="btn-row btn-row--utility">
+        <button id="btn-pause" class="util-btn" type="button">Pause Simulation</button>
+        <button id="btn-reset" class="util-btn util-btn--danger" type="button">Reset Simulation</button>
+        <button id="btn-export" class="util-btn" type="button">Export Log (CSV)</button>
+      </div>
+    </section>
+
+    <!-- FAULT INJECTION -->
+    <section class="panel">
+      <h2 class="panel-title">Fault Injection</h2>
+      <div class="fault-grid">
+        <button class="fault-btn" data-fault="TEMP" type="button">TEMP</button>
+        <button class="fault-btn" data-fault="VOLT" type="button">VOLT</button>
+        <button class="fault-btn" data-fault="CURR" type="button">CURR</button>
+        <button class="fault-btn" data-fault="SENSOR" type="button">SENSOR</button>
+        <button class="fault-btn" data-fault="COMMS" type="button">COMMS</button>
+        <button class="fault-btn fault-btn--clear" id="btn-clear-fault" type="button">CLEAR</button>
+      </div>
+    </section>
+
+    <!-- LIVE GRAPHS -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Live Telemetry</h2>
+        <span class="badge badge--live" id="graph-state-badge">LIVE</span>
+      </div>
+      <div class="graph-grid">
+        <div class="graph-card">
+          <span class="graph-title">SOC vs Time (%)</span>
+          <canvas class="graph-canvas" id="graph-soc" width="480" height="150"></canvas>
+        </div>
+        <div class="graph-card">
+          <span class="graph-title">Battery Voltage vs Time (V)</span>
+          <canvas class="graph-canvas" id="graph-voltage" width="480" height="150"></canvas>
+        </div>
+        <div class="graph-card">
+          <span class="graph-title">Charging Current vs Time (A)</span>
+          <canvas class="graph-canvas" id="graph-current" width="480" height="150"></canvas>
+        </div>
+        <div class="graph-card">
+          <span class="graph-title">Power vs Time (W)</span>
+          <canvas class="graph-canvas" id="graph-power" width="480" height="150"></canvas>
+        </div>
+        <div class="graph-card graph-card--wide">
+          <span class="graph-title">Battery Temperature vs Time (&deg;C)</span>
+          <canvas class="graph-canvas" id="graph-temp" width="980" height="150"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- SIMULATION PARAMETERS -->
+    <section class="panel">
+      <h2 class="panel-title">Simulation Parameters</h2>
+      <div class="param-grid">
+        <div class="param-item">
+          <span class="param-label">Initial SOC <em id="p-initsoc-label">20%</em></span>
+          <input type="range" id="p-initsoc" min="0" max="100" step="1" value="20" class="slider slider--sm">
+        </div>
+        <div class="param-item">
+          <span class="param-label">Target SOC <em id="p-targetsoc-label">100%</em></span>
+          <input type="range" id="p-targetsoc" min="10" max="100" step="1" value="100" class="slider slider--sm">
+        </div>
+        <div class="param-item">
+          <span class="param-label">Base Charge Current <em id="p-basecurrent-label">6.0 A</em></span>
+          <input type="range" id="p-basecurrent" min="0" max="10" step="0.1" value="6.0" class="slider slider--sm">
+        </div>
+        <div class="param-item">
+          <span class="param-label">Ambient Temperature <em id="p-ambient-label">28&deg;C</em></span>
+          <input type="range" id="p-ambient" min="10" max="45" step="1" value="28" class="slider slider--sm">
+        </div>
+        <div class="param-item">
+          <span class="param-label">Initial SOH <em id="p-initsoh-label">100%</em></span>
+          <input type="range" id="p-initsoh" min="60" max="100" step="1" value="100" class="slider slider--sm">
+        </div>
+        <div class="param-item">
+          <span class="param-label">Aging Speed <em id="p-aging-label">1.0x</em></span>
+          <input type="range" id="p-aging" min="0" max="5" step="0.1" value="1.0" class="slider slider--sm">
+        </div>
+        <div class="param-item">
+          <span class="param-label">Thermal Margin <em id="p-thermal-label">50&deg;C</em></span>
+          <input type="range" id="p-thermal" min="35" max="65" step="1" value="50" class="slider slider--sm">
+        </div>
+        <div class="param-item">
+          <span class="param-label">SOC Hold Margin <em id="p-holdmargin-label">1%</em></span>
+          <input type="range" id="p-holdmargin" min="0" max="5" step="0.5" value="1" class="slider slider--sm">
+        </div>
+      </div>
+    </section>
+
+    <!-- EVENT LOG -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Event Log</h2>
+        <button id="btn-clear-log" class="text-btn" type="button">Clear Log</button>
+      </div>
+      <div class="event-log" id="event-log"></div>
+    </section>
+
+  </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
